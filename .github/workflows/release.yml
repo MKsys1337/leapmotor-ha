@@ -1,0 +1,141 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to upload the ZIP to"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release-zip:
+    name: Build and upload HACS ZIP
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.release.tag_name || github.event.inputs.tag || github.ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Resolve release metadata
+        id: release
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          filename="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          hacs = json.loads(Path("hacs.json").read_text(encoding="utf-8"))
+          if hacs.get("zip_release") is not True:
+              raise SystemExit("hacs.json must set zip_release=true")
+          filename = hacs.get("filename")
+          if not filename:
+              raise SystemExit("hacs.json must define filename for zip_release")
+          print(filename)
+          PY
+          )"
+
+          tag="${RELEASE_TAG:-${INPUT_TAG:-${GITHUB_REF_NAME:-}}}"
+          if [ -z "$tag" ]; then
+            echo "Could not determine release tag" >&2
+            exit 1
+          fi
+
+          echo "filename=$filename" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Validate manifest version
+        run: |
+          python3 - "${{ steps.release.outputs.tag }}" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          tag = sys.argv[1].removeprefix("v")
+          manifest = json.loads(
+              Path("custom_components/leapmotor/manifest.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          version = manifest.get("version")
+          if version != tag:
+              raise SystemExit(
+                  f"manifest version {version!r} does not match release tag {sys.argv[1]!r}"
+              )
+          print(f"ok version {version}")
+          PY
+
+      - name: Compile Python files
+        run: python3 -m py_compile custom_components/leapmotor/*.py custom_components/leapmotor/leap_api/*.py
+
+      - name: Validate JSON files
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          paths = [
+              Path("hacs.json"),
+              Path("custom_components/leapmotor/manifest.json"),
+              *Path("custom_components/leapmotor/translations").glob("*.json"),
+          ]
+          for path in paths:
+              json.loads(path.read_text(encoding="utf-8"))
+              print(f"ok {path}")
+          PY
+
+      - name: Check forbidden files
+        run: |
+          test ! -e custom_components/leapmotor/app_cert.pem
+          test ! -e custom_components/leapmotor/app_key.pem
+          ! find . -path ./.git -prune -o \( -name '*.p12' -o -name '*.log' \) -print | grep .
+
+      - name: Build release ZIP
+        run: bash scripts/build_release_zip.sh "$RUNNER_TEMP/${{ steps.release.outputs.filename }}"
+
+      - name: Validate release ZIP layout
+        run: |
+          python3 - "$RUNNER_TEMP/${{ steps.release.outputs.filename }}" <<'PY'
+          import sys
+          import zipfile
+
+          zip_path = sys.argv[1]
+          with zipfile.ZipFile(zip_path) as archive:
+              names = set(archive.namelist())
+
+          required = {"manifest.json", "__init__.py", "api.py"}
+          missing = required - names
+          forbidden = {
+              "custom_components/leapmotor/manifest.json",
+              "app_cert.pem",
+              "app_key.pem",
+          } & names
+
+          if missing:
+              raise SystemExit(f"release ZIP missing root files: {sorted(missing)}")
+          if forbidden:
+              raise SystemExit(f"release ZIP contains forbidden entries: {sorted(forbidden)}")
+          print("ok release ZIP layout")
+          PY
+
+      - name: Upload release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "${{ steps.release.outputs.tag }}"
+          gh release upload "${{ steps.release.outputs.tag }}" "$RUNNER_TEMP/${{ steps.release.outputs.filename }}" --clobber

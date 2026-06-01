@@ -2,7 +2,13 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-zip_path="${1:-/home/ubuntu/leapmotor-ha.zip}"
+zip_path="${1:-$repo_root/dist/leapmotor-ha.zip}"
+
+if [[ "$zip_path" != /* ]]; then
+  zip_path="$repo_root/$zip_path"
+fi
+
+mkdir -p "$(dirname "$zip_path")"
 
 rm -f "$zip_path"
 (
