@@ -145,7 +145,10 @@
         "name": "Tijd laatste bericht"
       },
       "last_successful_refresh": {
-        "name": "Laatst vernieuwd"
+        "name": "Laatste cloudvernieuwing"
+      },
+      "last_vehicle_update": {
+        "name": "Laatste voertuigupdate"
       },
       "battery_percent_precise": {
         "name": "Accu nauwkeurig"

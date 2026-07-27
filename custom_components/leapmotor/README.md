@@ -163,6 +163,10 @@ be changed from the integration options without recreating the entry.
 
 ## State Freshness
 
+- `Last cloud refresh` is the time Home Assistant last completed a successful
+  API poll. `Last vehicle update` is the timestamp attached to the vehicle data
+  by Leapmotor and can remain unchanged while the cloud keeps returning stale
+  data. Its attributes expose the calculated age and stale state for automations.
 - Lock state is treated conservatively. If the cloud vehicle timestamp is too
   old, the lock falls back to `unknown` instead of showing a stale unlocked
   state for hours.
@@ -267,6 +271,10 @@ data:
   entity_id: number.c10_set_charge_limit
   charge_limit_percent: 85
 ```
+
+The charge-limit number uses Home Assistant's automatic control mode. Moving
+the slider sends the value when released. Automations can use `number.set_value`
+or the integration-specific `leapmotor.set_charge_limit` action shown above.
 
 Disable the charging schedule:
 

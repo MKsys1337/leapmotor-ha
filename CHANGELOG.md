@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.33 - 2026-07-27
+
+- Rename the existing successful-poll timestamp to Last cloud refresh and add
+  a separate Last vehicle update diagnostic sensor based on the timestamp
+  attached to the vehicle status by Leapmotor.
+- Expose vehicle-data age and staleness attributes for automations, supporting
+  epoch seconds, epoch milliseconds, ISO timestamps, and T03 `collectTime`.
+- Prefer numeric T03 `collectTimeMs` when both timestamp formats are present.
+- Let Home Assistant choose the charge-limit number control automatically
+  instead of forcing the ambiguous numeric input-box mode.
+
 ## 0.6.32 - 2026-07-20
 
 - Prevent regenerative braking and stale charge-state signals, observed on a

@@ -646,6 +646,16 @@ SENSOR_DESCRIPTIONS: tuple[LeapmotorSensorEntityDescription, ...] = (
         ),
     ),
     LeapmotorSensorEntityDescription(
+        key="last_vehicle_update",
+        translation_key="last_vehicle_update",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        icon="mdi:car-clock",
+        value_fn=lambda data: _vehicle_timestamp(
+            data["status"].get("last_vehicle_timestamp")
+        ),
+    ),
+    LeapmotorSensorEntityDescription(
         key="total_mileage_km",
         translation_key="total_mileage_km",
         native_unit_of_measurement=UnitOfLength.KILOMETERS,
@@ -950,6 +960,15 @@ class LeapmotorSensor(CoordinatorEntity[LeapmotorDataUpdateCoordinator], SensorE
                     "raw_parked_status_code": status.get("raw_parked_status_code"),
                 }
             )
+        if self.entity_description.key == "last_vehicle_update":
+            status = self.vehicle_data["status"]
+            attributes.update(
+                {
+                    "raw_vehicle_timestamp": status.get("last_vehicle_timestamp"),
+                    "age_seconds": status.get("vehicle_state_age_seconds"),
+                    "is_stale": status.get("vehicle_state_is_stale"),
+                }
+            )
         if self.entity_description.key in {
             "lock_state_source",
             "lock_state_age_seconds",
@@ -1087,15 +1106,26 @@ def _message_timestamp(value: Any) -> datetime | None:
         if not isinstance(value, str):
             return None
         try:
-            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
         except ValueError:
             return None
+        return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
     if numeric > 10_000_000_000:
         numeric /= 1000
     try:
         return datetime.fromtimestamp(numeric, tz=UTC)
     except (OSError, ValueError):
         return None
+
+
+def _vehicle_timestamp(value: Any) -> datetime | None:
+    """Return the timestamp of the latest data received from the vehicle."""
+    try:
+        if float(value) <= 0:
+            return None
+    except (TypeError, ValueError):
+        pass
+    return _message_timestamp(value)
 
 
 def _charging_finish_time(remaining_minutes: Any) -> datetime | None:

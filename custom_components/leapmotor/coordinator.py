@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from functools import partial
 import logging
 import time
@@ -474,17 +474,26 @@ def _state_age_seconds(raw_timestamp: Any) -> int | None:
     if raw_timestamp is None:
         return None
     try:
-        numeric = int(str(raw_timestamp))
+        numeric = float(raw_timestamp)
     except (TypeError, ValueError):
-        return None
-    if numeric <= 0:
-        return None
-    if numeric > 1_000_000_000_000:
-        event_ts = numeric / 1000.0
-    elif numeric > 1_000_000_000:
-        event_ts = float(numeric)
+        try:
+            parsed = datetime.fromisoformat(
+                str(raw_timestamp).replace("Z", "+00:00")
+            )
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        event_ts = parsed.timestamp()
     else:
-        return None
+        if numeric <= 0:
+            return None
+        if numeric > 10_000_000_000:
+            event_ts = numeric / 1000.0
+        elif numeric > 1_000_000_000:
+            event_ts = numeric
+        else:
+            return None
     age = int(time.time() - event_ts)
     return max(age, 0)
 

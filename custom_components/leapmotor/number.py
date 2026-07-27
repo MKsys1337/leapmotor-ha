@@ -104,8 +104,6 @@ class LeapmotorChargeLimitNumber(
     _attr_native_unit_of_measurement = PERCENTAGE
     _attr_device_class = NumberDeviceClass.BATTERY
     _attr_icon = "mdi:battery-sync"
-    _attr_mode = "box"
-
     def __init__(
         self,
         coordinator: LeapmotorDataUpdateCoordinator,

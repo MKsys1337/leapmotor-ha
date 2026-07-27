@@ -130,7 +130,10 @@
         "name": "Fahrzeugstatus"
       },
       "last_successful_refresh": {
-        "name": "Zuletzt aktualisiert"
+        "name": "Letzte Cloud-Abfrage"
+      },
+      "last_vehicle_update": {
+        "name": "Letzte Fahrzeugaktualisierung"
       },
       "total_mileage_km": {
         "name": "Gesamtkilometer"

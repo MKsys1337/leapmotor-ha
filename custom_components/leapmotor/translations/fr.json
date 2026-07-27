@@ -145,7 +145,10 @@
         "name": "Heure du dernier message"
       },
       "last_successful_refresh": {
-        "name": "Dernière actualisation"
+        "name": "Dernière actualisation du cloud"
+      },
+      "last_vehicle_update": {
+        "name": "Dernière mise à jour du véhicule"
       },
       "battery_percent_precise": {
         "name": "Batterie précise"

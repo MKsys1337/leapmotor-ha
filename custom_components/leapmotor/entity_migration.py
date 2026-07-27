@@ -128,6 +128,7 @@ _ENGLISH_ENTITY_SLUGS: dict[tuple[str, str], str] = {
     ("sensor", "rear_left_window_position_percent"): "rear_left_window_position",
     ("sensor", "rear_right_window_position_percent"): "rear_right_window_position",
     ("sensor", "last_successful_refresh"): "last_refresh",
+    ("sensor", "last_vehicle_update"): "last_vehicle_update",
     ("sensor", "total_mileage_km"): "total_mileage",
     ("sensor", "total_energy_kwh"): "total_energy_consumption",
     ("sensor", "last_7_days_mileage_km"): "last_7_days_mileage",

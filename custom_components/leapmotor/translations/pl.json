@@ -145,7 +145,10 @@
         "name": "Czas ostatniej wiadomości"
       },
       "last_successful_refresh": {
-        "name": "Ostatnie odświeżenie"
+        "name": "Ostatnie odświeżenie chmury"
+      },
+      "last_vehicle_update": {
+        "name": "Ostatnia aktualizacja pojazdu"
       },
       "battery_percent_precise": {
         "name": "Bateria dokładna"

@@ -130,7 +130,10 @@
         "name": "Vehicle state"
       },
       "last_successful_refresh": {
-        "name": "Last refresh"
+        "name": "Last cloud refresh"
+      },
+      "last_vehicle_update": {
+        "name": "Last vehicle update"
       },
       "total_mileage_km": {
         "name": "Total mileage"
