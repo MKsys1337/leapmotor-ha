@@ -96,9 +96,12 @@ integration from `Settings -> Devices & services`.
 - App certificate/private key are required.
 - Vehicle PIN is optional for setup; without it the integration stays read-only.
 - ABRP live data is optional and only needs the ABRP Generic Token.
-- Update interval is configurable.
+- Update intervals are configured in minutes. Runtime diagnostics expose the
+  resulting interval in seconds, so a configured value of `60` appears as
+  `3600` seconds. Use `1` for one-minute polling.
 - Optional eco polling can slow cloud polling when every vehicle is clearly
-  locked, parked, and unplugged.
+  locked, parked, and unplugged. Its minimum interval is `5` minutes; disable
+  eco polling if the normal one-minute interval should also apply while parked.
 - If multiple vehicles are available, entities are created per VIN and services
   can target a vehicle by `vin` or a Leapmotor `entity_id`.
 

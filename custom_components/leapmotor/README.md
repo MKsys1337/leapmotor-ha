@@ -151,10 +151,13 @@ normal user install path.
 - Vehicle PIN: optional; leave empty for read-only mode. Remote-control actions
   usually require this PIN and stay unavailable without it. Sending a
   destination does not require the PIN, matching the observed app flow.
-- Update interval: default `5` minutes
+- Update interval: default `5` minutes. All interval fields are in minutes;
+  runtime diagnostics report the resulting value in seconds (`60` minutes is
+  shown as `3600` seconds). Use `1` for one-minute polling.
 - Eco polling: optional; when enabled, polling switches to the slower eco
   interval only while every vehicle is locked, parked, and unplugged.
-- Eco update interval: default `15` minutes
+- Eco update interval: default `15` minutes, minimum `5` minutes. Disable eco
+  polling if the normal one-minute interval should also apply while parked.
 - ABRP live data: optional
 - ABRP Generic token: optional; only required when ABRP live data is enabled
 
