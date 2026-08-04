@@ -2005,6 +2005,10 @@ def normalize_vehicle(
     last_charge = charge_records[0] if charge_records else None
     vehicle_state = _derive_vehicle_state(signal)
     tire_pressures = _tire_pressures_bar(vehicle.car_type, signal)
+    fuel_liters_raw = signal.get("3263")
+    if fuel_liters_raw is None:
+        fuel_liters_raw = signal.get("2363")
+    fuel_liters = _safe_float(fuel_liters_raw)
     last_7_days_energy = _sum_detail_field(mileage_data.get("detail"), "accumulatedEnergyConsume")
     last_week_split = _energy_breakdown_percentages(breakdown_data)
     today_split = _energy_breakdown_percentages(today_data)
@@ -2031,7 +2035,11 @@ def normalize_vehicle(
         "status": {
             "battery_percent": signal.get("1204"),
             "fuel_level_percent": _safe_float(signal.get("3235")),
-            "fuel_level_liters": _safe_float(signal.get("2363")) / 1000.0 if signal.get("2363") is not None else None,
+            # REEV captures identify 3263 as the vehicle's measured fuel volume
+            # in millilitres. Keep 2363 as a fallback for older payload variants.
+            "fuel_level_liters": (
+                fuel_liters / 1000.0 if fuel_liters is not None else None
+            ),
             "remaining_range_km": signal.get("3260"),
             "fuel_range_km": _safe_int(signal.get("3259")),
             "max_fuel_range_km": _safe_int(signal.get("3256")),
@@ -2198,9 +2206,7 @@ def normalize_vehicle(
             "park_assist_enabled": _one_is_on(signal.get("2189")),
             "sentinel_mode": _one_is_on(signal.get("3636")),
             "parking_photo": _one_is_on(signal.get("3638")),
-            "fully_charged": _one_is_on(signal.get("3736"))
-            if signal.get("3736") is not None
-            else _safe_bool(status_data.get("chargeCompleted")),
+            "fully_charged": _fully_charged(signal, status_data, charge_plan),
             "healthy_charging_enabled": _one_is_on(signal.get("48")),
             "charging_schedule_cancelled_once": _one_is_on(signal.get("3737")),
             "speed_limit_enabled": _one_is_on(signal.get("12054")),
@@ -2959,12 +2965,22 @@ def _is_charging(signal: dict[str, Any]) -> bool:
     remaining_charge_minutes = _safe_int(signal.get("1200"))
     charging_current_a = _safe_float(signal.get("1178"))
     charging_power_kw = _charging_power_kw(signal)
+    connection_status = _safe_int(signal.get("1149"))
+    # REEV captures show 5 as a drive-time cable code. Reject it even when a
+    # stale gear/speed frame has not yet activated the movement guard above.
+    if connection_status == 5:
+        return False
     if charging_current_a is not None:
         # Confirmed charging sessions show a clearly non-zero current
         # (typically negative while energy flows into the pack). After
         # charge completion the backend can keep 1149=2 while current is 0.
         if abs(charging_current_a) < 1.0:
-            return False
+            # C10 REEV slow AC charging can bypass this pack-current signal.
+            # Require both the explicit charging state and a positive remaining
+            # time so connected-idle and transient cable states remain off.
+            return connection_status == 2 and (
+                remaining_charge_minutes is not None and remaining_charge_minutes > 0
+            )
         # B10 can actively AC-charge around 2.5 A. C10 plugged-idle snapshots
         # can sit around 1.5 A, so the grey zone needs an extra confirmation.
         if abs(charging_current_a) < 3.0:
@@ -2979,7 +2995,6 @@ def _is_charging(signal: dict[str, Any]) -> bool:
     if charging_power_kw is not None:
         return charging_power_kw >= 1.0 and remaining_charge_minutes is not None
 
-    connection_status = _safe_int(signal.get("1149"))
     if connection_status == 2:
         return True
     if connection_status in (0, 1):
@@ -2993,12 +3008,14 @@ def _is_plugged_in(signal: dict[str, Any]) -> bool | None:
     if _vehicle_precludes_charging(signal):
         return False
 
+    connection_status = _safe_int(signal.get("1149"))
+    if connection_status is not None:
+        # REEVs can cycle through state 3 during an uninterrupted charge.
+        # State 5 is observed while driving and is not a physical connection.
+        return connection_status in (1, 2, 3)
     plug = _safe_int(signal.get("47"))
     if plug is not None:
         return plug == 1
-    connection_status = _safe_int(signal.get("1149"))
-    if connection_status is not None:
-        return connection_status in (1, 2)
     return None
 
 
@@ -3034,6 +3051,8 @@ def _charging_connection_state(signal: dict[str, Any]) -> str | None:
         return "plugged_in"
     if connection_status == 2:
         return "plugged_in" if _is_plugged_in(signal) else "charging"
+    if connection_status == 3:
+        return "plugged_in"
     return None
 
 
@@ -3043,7 +3062,10 @@ def _charge_is_finished(signal: dict[str, Any]) -> bool:
         return False
     if not _is_plugged_in(signal):
         return False
-    if _one_is_on(signal.get("3736")):
+    # B10 REEV captures show 3736 toggling at a low SoC during charging. BEVs
+    # report it reliably; REEV completion is instead confirmed by the idle
+    # current/power and remaining-time checks below.
+    if signal.get("3235") is None and _one_is_on(signal.get("3736")):
         return True
     connection_status = _safe_int(signal.get("1149"))
     if connection_status != 2:
@@ -3054,6 +3076,29 @@ def _charge_is_finished(signal: dict[str, Any]) -> bool:
     current_idle = charging_current_a is not None and abs(charging_current_a) < 1.0
     power_idle = charging_power_kw is None or charging_power_kw < 1.0
     return current_idle and power_idle and remaining_charge_minutes in (None, 0)
+
+
+def _fully_charged(
+    signal: dict[str, Any],
+    status_data: dict[str, Any],
+    charge_plan: dict[str, Any],
+) -> bool | None:
+    """Return a plausibility-checked charge-complete state."""
+    reported = (
+        _one_is_on(signal.get("3736"))
+        if signal.get("3736") is not None
+        else _safe_bool(status_data.get("chargeCompleted"))
+    )
+    if reported is not True or signal.get("3235") is None:
+        return reported
+
+    charge_limit = _safe_float(charge_plan.get("percent"))
+    battery_percent = _safe_float(signal.get("100003"))
+    if battery_percent is None:
+        battery_percent = _safe_float(signal.get("1204"))
+    if charge_limit is None or battery_percent is None:
+        return reported
+    return battery_percent >= charge_limit - 15
 
 
 def _climate_mode(signal: dict[str, Any]) -> str | None:

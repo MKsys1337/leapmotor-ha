@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Prefer measured REEV fuel volume signal `3263`, with the previous `2363`
+  mapping retained as a compatibility fallback.
+- Recognize the captured C10 REEV slow-AC signature where charge state `1149=2`
+  and a positive remaining time confirm charging despite near-zero pack current.
+- Keep REEV cable state `1149=3` connected across mid-charge state changes, and
+  reject drive-time state `1149=5` even when gear or speed data is stale.
+- Suppress implausible REEV `3736` charge-complete reports when the battery is
+  more than 15 percentage points below a known charge limit.
+- Back off failed vehicle-image package downloads for ten minutes when no cache
+  exists, preventing repeated frontend requests from hammering the account.
+
 ## 0.6.33 - 2026-07-27
 
 - Rename the existing successful-poll timestamp to Last cloud refresh and add

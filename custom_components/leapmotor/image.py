@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import logging
+import time
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -22,6 +23,7 @@ from .entity_helpers import build_vehicle_display_name
 from .entity_migration import english_entity_slug
 
 _LOGGER = logging.getLogger(__name__)
+_IMAGE_DOWNLOAD_RETRY_SECONDS = 600
 
 
 async def async_setup_entry(
@@ -55,6 +57,7 @@ class LeapmotorVehicleImage(
         self._cached_image: bytes | None = None
         self._last_picture_key: str | None = None
         self._cache_refresh_attempted = False
+        self._download_retry_after = 0.0
         self._attr_image_last_updated: datetime | None = None
 
         vehicle = self.vehicle_data["vehicle"]
@@ -120,12 +123,24 @@ class LeapmotorVehicleImage(
             self._cached_image = image
             return image
 
+        if time.monotonic() < self._download_retry_after:
+            return None
         self._cache_refresh_attempted = True
-        image = await self.hass.async_add_executor_job(
-            self._download_static_vehicle_image,
-            picture_key,
-            cache_path,
-        )
+        try:
+            image = await self.hass.async_add_executor_job(
+                self._download_static_vehicle_image,
+                picture_key,
+                cache_path,
+            )
+        except Exception:  # noqa: BLE001
+            self._download_retry_after = (
+                time.monotonic() + _IMAGE_DOWNLOAD_RETRY_SECONDS
+            )
+            _LOGGER.warning(
+                "Could not download the Leapmotor vehicle image; retrying in 10 minutes"
+            )
+            return None
+        self._download_retry_after = 0.0
         self._cached_image = image
         return image
 
@@ -147,6 +162,7 @@ class LeapmotorVehicleImage(
             self._last_picture_key = picture_key
             self._cached_image = None
             self._cache_refresh_attempted = False
+            self._download_retry_after = 0.0
             self._attr_image_last_updated = datetime.now(UTC)
 
     def _handle_coordinator_update(self) -> None:
