@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.34 - 2026-08-04
 
 - Prefer measured REEV fuel volume signal `3263`, with the previous `2363`
   mapping retained as a compatibility fallback.
@@ -12,6 +12,8 @@
   more than 15 percentage points below a known charge limit.
 - Back off failed vehicle-image package downloads for ten minutes when no cache
   exists, preventing repeated frontend requests from hammering the account.
+- Thanks to `markoceri`, `ProtossBlaster`, and the Leapmotor Mate community for
+  publishing the signal research and real-vehicle captures behind these fixes.
 
 ## 0.6.33 - 2026-07-27
 
